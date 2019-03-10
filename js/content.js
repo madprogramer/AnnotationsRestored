@@ -208,7 +208,46 @@ function getAnnotationsPastebinFromDescription(description) {
 		}
 	});
 }
+// get from waybackmachine
+function getAnnotationsWayBackMachineFromDescription(description) {
+	return new Promise((resolve, reject) => {
+		// Gist annotations
+		const startWBMFlagText = "[ar_wbm_start]";
+		const startWBMFlag = description.indexOf(startPasteFlagText);
+		const endWBMFlag = description.indexOf("[ar_wbm_end]");
 
+		if (startWBMFlag === -1 || endWBMFlag === -1) {
+			reject("Couldn\'t find either a start or end flag");
+			return;
+		}
+
+		try {
+			const WBMUrlPrefix = "http://archive.org/wayback/available?url=https://www.youtube.com/annotations_invideo?video_id=";
+
+			const startWBMFlagText = "[ar_wbm_start]";
+			const WBMUrl = description.substring(startWBMFlag + startWBMFlagText.length, endWBMFlag);
+			const longUrl = (WBMUrl.indexOf("v="));
+			const shortUrl = (WBMUrl.indexOf("youtu.be/"));
+			const WBMID = ((shortUrl>=0)?(WBMUrl.substring(shortUrl+9,shortUrl+20)):(WBMUrl.substring(longUrl+2,longUrl+13)));
+			const endpoint = `${WBMUrlPrefix}${WBMID}`;
+
+			fetch(endpoint)
+			.then(response => JSON.parse(response))
+			.then(json => {
+				console.log(json);
+				//const annotations = annotationParser.deserializeAnnotationList(text);
+				//resolve(annotations);
+				resolve("");
+			})
+			.catch(e => {
+				reject(`Possibly malformed annotation data: ${e}`);
+			});
+		} 
+		catch (e) {
+			reject(`Possibly malformed annotation data: ${e}`);
+		}
+	});
+}
 function getDescription(retries = 6, retryInterval = 500) {
 	return new Promise((resolve, reject) => {
 		let intervalCount = 0;
@@ -250,8 +289,11 @@ function getFirstValidDescriptionAnnotations() {
 
 			const pastebin = await getAnnotationsPastebinFromDescription(description).catch(e => {/* discard the error and check the next source */});
 			if (pastebin) { resolve({annotations: pastebin, type: "pastebin"}); return; }
+			
+			const waybackmachine = await getAnnotationsWayBackMachineFromDescription(description).catch(e => {/* discard the error and check the next source */});
+			if (waybackmachine) { resolve({annotations: waybackmachine, type: "pastebin"}); return; }
 
-			reject(`Couldn\'t find embedded, gist, or pastebin annotations`);
+			reject(`Couldn\'t find embedded, gist, pastebin, or waybackmachine annotations`);
 		}).catch(e => {
 			reject(`Couldn\'t find description: ${e}`);
 		});
